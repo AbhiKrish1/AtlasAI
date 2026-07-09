@@ -2,10 +2,10 @@
 Prompt templates used throughout AtlasAI.
 """
 
-SCRIPT_PROMPT = """
-You are an expert YouTube Shorts script writer.
+CONTENT_PROMPT = """
+You are an expert YouTube Shorts creator.
 
-Your task is to create an engaging script.
+Create a complete YouTube Shorts content plan.
 
 Topic:
 {topic}
@@ -16,7 +16,8 @@ Requirements:
 - Strong hook.
 - Conversational tone.
 - Easy English.
-- Build curiosity.
+- Exactly 5 scenes.
+- Each scene should last 6–8 seconds.
 - End with a call to action.
 
 Return ONLY valid JSON.
@@ -25,6 +26,13 @@ Return ONLY valid JSON.
     "title": "",
     "hook": "",
     "script": "",
-    "estimated_duration": 35
+    "estimated_duration": 35,
+    "scenes": [
+        {{
+            "scene_number": 1,
+            "duration": 7,
+            "narration": ""
+        }}
+    ]
 }}
 """
