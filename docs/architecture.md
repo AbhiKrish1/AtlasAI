@@ -466,3 +466,144 @@ Visible features arrive slightly later, but development accelerates afterward be
 ///
 SPRINT 2
 ///
+ADR #30 — Separate Positive and Negative Prompts
+
+Decision
+
+Each scene prompt will explicitly store a positive prompt and a negative prompt instead of a single combined prompt.
+
+Reason
+
+Modern image generation models generally support positive and negative conditioning. Keeping them separate improves readability, makes prompt tuning easier, and avoids embedding generator-specific syntax into a single string.
+
+Trade-off
+
+Slightly larger model, but significantly better flexibility for future image providers.
+ADR #31 — Separate Creative Intent From Rendering Style
+
+Decision
+
+PromptGenerator will generate the semantic description of a scene, while rendering style (e.g., cinematic, photorealistic, 8K) will be appended from a centralized style configuration.
+
+Reason
+
+Creative intent and rendering style evolve independently. Separating them reduces token usage, keeps prompts cleaner, and allows global style changes without regenerating scene descriptions.
+
+Trade-off
+
+An additional formatting step in PromptGenerator, but much greater consistency and maintainability.
+ADR #32 — LLM Generates Semantic Content Only
+
+Decision
+
+LLMs in AtlasAI will generate only the semantic content (what should be shown), while AtlasAI itself appends rendering styles, quality modifiers, and negative prompts.
+
+Reason
+
+Separating creative intent from rendering configuration makes outputs more consistent, easier to tune, and independent of any specific image generation model.
+
+Trade-off
+
+A small amount of post-processing in the application, but much greater control over the final visual style.
+.
+
+📖 ADR #33 — Use Keyword-Oriented Image Prompts
+
+Decision
+
+PromptGenerator will produce concise, comma-separated visual concepts instead of natural-language sentences.
+
+Reason
+
+Stable Diffusion-based image generators generally perform better with keyword-style prompts than conversational descriptions.
+
+Trade-off
+
+Prompts become less readable to humans but produce more consistent image quality.
+📖 ADR #34 — Project-Based Output Organization
+
+Decision
+
+Every AtlasAI run will create its own project directory, and all generated assets (images, audio, video, metadata) will live inside it.
+
+Reason
+
+This prevents files from being overwritten, keeps runs isolated, makes debugging easier, and prepares the project for a future frontend and resume functionality.
+
+Trade-off
+
+Slightly deeper folder hierarchy, but much better organization and scalability.
+📖 ADR #35 — Timestamped Project Directories
+
+Decision
+
+Each project directory will include a timestamp and a shortened unique identifier (e.g. 20260628_143522_83b4d965) rather than only a UUID.
+
+Reason
+
+Timestamped folders are much easier to browse and debug while remaining unique. They also provide useful context without opening metadata files.
+
+Trade-off
+
+Slightly longer directory names, but significantly better usability during development and future production use.
+ADR #37 — Services Own Dependency Lifecycle
+
+Decision
+
+Service classes are responsible not only for communicating with external software but also for ensuring those dependencies are available before use.
+
+Reason
+
+Generators and pipelines should focus solely on content generation. Dependency startup and readiness checks belong inside the corresponding service.
+
+Trade-off
+
+Slightly more responsibility in service classes, but a dramatically simpler application flow and better user experience.
+📖 ADR #38 — Prefer Stable Integration APIs Over UI Internals
+
+Decision
+
+AtlasAI will integrate with Fooocus through a stable API interface rather than directly invoking Gradio's internal prediction endpoints.
+
+Reason
+
+Gradio component IDs and dependency graphs are implementation details that can change between releases. A dedicated API provides a more stable contract and reduces maintenance.
+
+Trade-off
+
+A small amount of setup now, in exchange for a much more reliable integration going forward.
+📖 ADR #39 — Validate External Integrations Before Abstraction
+
+Decision
+
+Before implementing a service class for an external dependency, first create a small standalone integration test that verifies the API contract.
+
+Reason
+
+It separates "does the dependency work?" from "is our architecture correct?", making debugging much simpler.
+
+Trade-off
+
+One temporary test file, but much less risk of building abstractions on incorrect assumptions.
+ADR #40 — Build Adapters from Official Integration Examples
+
+Decision
+
+When integrating with external systems that provide generated client code or official examples, AtlasAI will use those examples as the starting point and wrap them behind service classes rather than reconstructing requests manually.
+
+Reason
+
+Generated examples are version-matched to the running service and significantly reduce the risk of integration bugs.
+
+Trade-off
+
+The initial adapter may contain more parameters than AtlasAI ultimately exposes, but those details remain isolated inside the service layer.
+📖 ADR #46 — Image Engine Pivot
+
+Decision
+
+AtlasAI will use ComfyUI as the image generation backend for Version 1 instead of Fooocus.
+
+Reason
+
+After investigating both the built-in Gradio API and FooocusAPI, we determined that integration issues were consuming project time without improving AtlasAI itself. ComfyUI provides a mature API-first architecture that aligns better with AtlasAI's service-oriented design.

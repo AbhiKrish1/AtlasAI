@@ -4,7 +4,10 @@ AtlasProject
 Represents the complete state of a video generation project.
 """
 
-from pydantic import BaseModel,Field
+from pathlib import Path
+from uuid import uuid4
+
+from pydantic import BaseModel, Field
 
 from backend.models.content import ContentPlan
 from backend.models.prompt import PromptPlan
@@ -13,7 +16,7 @@ from backend.models.voice import VoiceTrack
 from backend.models.video import VideoProject
 
 
-class ProjectStatus(BaseModel):
+class ProjectProgress(BaseModel):
     """
     Tracks the progress of the generation pipeline.
     """
@@ -31,12 +34,20 @@ class ProjectStatus(BaseModel):
 
 class AtlasProject(BaseModel):
     """
-    Represents one AtlasAI generation project.
+    Represents a single AtlasAI generation project.
     """
+
+    project_id: str = Field(
+        default_factory=lambda: str(uuid4())
+    )
 
     topic: str
 
-    progress: ProjectStatus = Field(default_factory=ProjectStatus)
+    output_dir: Path | None = None
+
+    progress: ProjectProgress = Field(
+        default_factory=ProjectProgress
+    )
 
     content: ContentPlan | None = None
 

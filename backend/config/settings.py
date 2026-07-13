@@ -9,3 +9,7 @@ DEFAULT_DURATION = 35
 DEFAULT_TONE = "engaging"
 
 DEFAULT_PLATFORM = "youtube_shorts"
+
+from pathlib import Path
+
+OUTPUT_DIR = Path("outputs")

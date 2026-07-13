@@ -1,6 +1,5 @@
 from backend.pipeline.atlas_pipeline import AtlasPipeline
 
-
 pipeline = AtlasPipeline()
 
 project = pipeline.generate(
@@ -9,7 +8,17 @@ project = pipeline.generate(
 
 print()
 
-print(project.content)
+print("Project ID:")
+print(project.project_id)
+
+print()
+
+print("Output Directory:")
+print(project.output_dir)
+
+print()
+
+print(project.content.title)
 
 print()
 
