@@ -607,3 +607,421 @@ AtlasAI will use ComfyUI as the image generation backend for Version 1 instead o
 Reason
 
 After investigating both the built-in Gradio API and FooocusAPI, we determined that integration issues were consuming project time without improving AtlasAI itself. ComfyUI provides a mature API-first architecture that aligns better with AtlasAI's service-oriented design.
+Absolutely. I also think this is a good point to start documenting the architecture properly. Up until now, the ADRs have been recording major decisions, and the ComfyUI migration is definitely significant enough to warrant several new ADRs.
+
+I'd actually revise the ADR sequence slightly based on what we've learned. These are the decisions we've actually made, rather than the ones we initially thought we'd make.
+
+ADR-047 — Standardize on ComfyUI for Local Image Generation
+Decision
+
+AtlasAI will use ComfyUI as the default local image generation backend for Version 1.
+
+Reason
+
+Several local image generation solutions were evaluated. Fooocus provided good manual image generation but its API integration proved unreliable due to compatibility issues with newer Gradio versions and maintenance concerns.
+
+ComfyUI provides:
+
+Stable HTTP API
+Workflow-based generation
+Large ecosystem
+Easy automation
+Better long-term extensibility
+
+Since AtlasAI's objective is fully automated video generation rather than interactive image creation, ComfyUI better satisfies the project's architectural goals.
+
+Tradeoff
+
+Pros
+
+Stable REST API
+Modular workflows
+Easy to extend
+Large community support
+
+Cons
+
+Higher initial learning curve
+Requires workflow management
+Slightly more setup than Fooocus
+ADR-048 — Verify External Dependencies Before Integration
+Decision
+
+Every external dependency must first be validated independently before integrating it into AtlasAI.
+
+Reason
+
+Testing external systems in isolation separates infrastructure problems from application problems.
+
+The integration process therefore becomes:
+
+Manual Verification
+        ↓
+Integration Test
+        ↓
+Service Layer
+        ↓
+Generator
+        ↓
+Pipeline
+
+This approach significantly reduces debugging complexity.
+
+Tradeoff
+
+Pros
+
+Easier debugging
+Smaller failure surface
+Reusable test utilities
+
+Cons
+
+Slightly longer development process
+Requires temporary test scripts
+ADR-049 — Store ComfyUI Workflows as Project Resources
+Decision
+
+ComfyUI workflows will be stored as JSON files inside the AtlasAI repository rather than embedded in Python code.
+
+Example:
+
+backend/
+└── resources/
+    └── workflows/
+        txt2img.json
+Reason
+
+The workflow itself is configuration rather than application logic.
+
+Keeping workflows separate allows them to evolve independently of the codebase.
+
+Future improvements (ControlNet, SDXL, Flux, img2img, upscaling) become workflow changes instead of source code modifications.
+
+Tradeoff
+
+Pros
+
+Cleaner architecture
+Easier maintenance
+Better separation of concerns
+Non-programmers can edit workflows
+
+Cons
+
+Requires loading JSON from disk
+Node IDs must remain synchronized with the workflow
+ADR-050 — Keep ImageEngineService Engine-Agnostic
+Decision
+
+ImageEngineService will expose a single public API while hiding all ComfyUI-specific implementation details.
+
+Example:
+
+generate_image(
+    positive_prompt,
+    negative_prompt,
+    output_path
+)
+
+The rest of AtlasAI must never know about:
+
+HTTP requests
+Workflow JSON
+Polling
+Prompt IDs
+ComfyUI endpoints
+Reason
+
+AtlasAI should depend on capabilities, not implementations.
+
+If a future version replaces ComfyUI with another backend, only ImageEngineService should require modification.
+
+Tradeoff
+
+Pros
+
+Low coupling
+Easy engine replacement
+Easier testing
+Cleaner pipeline
+
+Cons
+
+Slight abstraction overhead
+Requires one additional service layer
+ADR-051 — Keep Workflow Logic Inside ImageEngineService (Version 1)
+Decision
+
+Version 1 will not introduce a dedicated WorkflowBuilder abstraction.
+
+The workflow JSON will be loaded directly by ImageEngineService, and only the required prompt fields and filename prefix will be modified.
+
+Reason
+
+The current workflow changes only three values:
+
+Positive prompt
+Negative prompt
+Output filename
+
+Introducing an additional builder layer would add complexity without meaningful benefit.
+
+Future workflow variations can justify extracting this responsibility when needed.
+
+Tradeoff
+
+Pros
+
+Simpler implementation
+Less code
+Easier to understand
+Faster development
+
+Cons
+
+Workflow editing is coupled to the service
+Multiple workflows may require refactoring later
+ADR-052 — Keep Services Small and Focused
+
+Decision
+
+Split image generation into multiple focused services instead of one large service.
+
+Reason
+
+Smaller classes are easier to understand, test, debug, and extend.
+
+Tradeoff
+
+More files to manage, but significantly improved maintainability.
+# ADR-053: Workflow Parameter Mapping
+
+## Decision
+Store workflow parameter mappings in separate `.mapping.json` files alongside ComfyUI workflow templates.
+
+## Reason
+Decouple application logic from ComfyUI node IDs and make workflow updates configuration-driven.
+
+## Trade-offs
++ Easier workflow maintenance.
++ Supports multiple workflows without code changes.
+- Requires maintaining a small mapping file for each workflow.
+# ADR-055: Workflow Template Model
+
+## Decision
+Represent workflows as `WorkflowTemplate` objects containing both the workflow definition and parameter mapping.
+
+## Reason
+Provide a stable contract between the loader and the image engine while supporting future workflow metadata.
+
+## Trade-offs
++ Clearer interfaces.
++ Easier to extend.
+- Adds one lightweight model class.
+# ADR-056: Generic Runtime Parameters
+
+## Decision
+Pass workflow inputs as a runtime parameter dictionary instead of fixed method arguments.
+
+## Reason
+Keep the image engine independent of specific workflow parameters and allow new parameters to be introduced through configuration.
+
+## Trade-offs
++ Workflow-agnostic engine.
++ No API changes when adding new parameters.
+- Slightly less compile-time validation of parameter names.
+# ADR-057: Data-Driven Parameter Injection
+
+## Decision
+Inject workflow parameters by iterating over a runtime parameter dictionary and using the workflow mapping to locate target fields.
+
+## Reason
+Make the image engine independent of specific workflow parameters and eliminate code changes when introducing new workflow inputs.
+
+## Trade-offs
++ Fully workflow-agnostic engine.
++ Future parameters require only mapping updates.
++ Simpler orchestration logic.
+- Invalid parameter names are ignored unless validated separately.
+# ADR-058: Layered Testing Strategy
+
+## Decision
+Validate the image engine through unit tests, followed by integration tests, and finally pipeline-level tests.
+
+## Reason
+Catch implementation issues at the smallest possible scope before verifying end-to-end behavior.
+
+## Trade-offs
++ Easier debugging.
++ Faster feedback during development.
++ More reliable integration testing.
+- Requires writing tests before higher-level features.
+# ADR-061: Exception Boundary
+
+## Decision
+Services translate third-party and low-level exceptions into AtlasAI domain exceptions before propagating them.
+
+## Reason
+Prevent implementation details from leaking across service boundaries and provide a stable error API.
+
+## Trade-offs
++ Decouples business logic from third-party libraries.
++ Easier to swap implementations.
++ Consistent error handling across the project.
+- Requires small wrapper code around external library calls.
+# ADR-062: Root Exception Type
+
+## Decision
+Introduce `AtlasAIError` as the root exception for all project-specific errors.
+
+## Reason
+Provide a single exception type that callers can catch while allowing domain-specific exception hierarchies underneath.
+
+## Trade-offs
++ Consistent error handling.
++ Easy to extend with new domains.
+- Adds one additional inheritance level.
+# ADR-063: Hierarchical Workflow Exceptions
+
+## Decision
+Group all workflow-related exceptions under a common `WorkflowError` base class.
+
+## Reason
+Allow callers to catch either specific workflow failures or all workflow-related failures through a single exception hierarchy.
+
+## Trade-offs
++ Clear exception organization.
++ Simplifies error handling.
++ Easy to extend with future workflow errors.
+- Adds one additional inheritance level.
+# ADR-064: ComfyUI Exception Hierarchy
+
+## Decision
+Group all ComfyUI-specific failures under a dedicated `ComfyUIError` hierarchy.
+
+## Reason
+Isolate infrastructure-level failures from higher application layers and provide a stable error interface.
+
+## Trade-offs
++ Prevents third-party exceptions from leaking.
++ Easier service replacement.
++ Consistent infrastructure error handling.
+- Requires translating low-level exceptions inside the service.
+# ADR-065: Exception Package Façade
+
+## Decision
+Expose AtlasAI exceptions through `backend.exceptions.__init__` rather than importing from individual modules.
+
+## Reason
+Provide a stable public interface for exception imports and hide the internal module organization.
+
+## Trade-offs
++ Simpler imports.
++ Easier future refactoring.
++ Cleaner public API.
+- Requires maintaining the exported symbol list.
+# ADR-066: Centralized JSON Loading
+
+## Decision
+Use a private `_load_json()` helper within `WorkflowLoader` to load and validate workflow resources.
+
+## Reason
+Avoid duplicated JSON loading logic and provide a single place to translate parsing failures into AtlasAI domain exceptions.
+
+## Trade-offs
++ Simpler public methods.
++ Consistent error handling.
++ Easier maintenance.
+- Adds one private helper method.
+# ADR-067: Encapsulated ComfyUI Response Parsing
+
+## Decision
+Hide ComfyUI history response parsing behind a private helper method.
+
+## Reason
+Prevent public methods from depending on ComfyUI's response structure and localize future compatibility changes.
+
+## Trade-offs
++ Better encapsulation.
++ Easier maintenance if the API evolves.
++ Cleaner public methods.
+- Adds one private helper.
+# ADR-068: Workflow Mapping Validation
+
+## Decision
+Validate workflow mappings before injecting runtime parameters.
+
+## Reason
+Fail with descriptive AtlasAI exceptions instead of exposing low-level `KeyError`s caused by invalid workflow mappings.
+
+## Trade-offs
++ Clearer diagnostics.
++ Safer workflow updates.
++ Easier debugging.
+- Small amount of validation logic during parameter injection.
+# ADR-069: Centralized Logging
+
+## Decision
+Configure logging through a shared `get_logger()` utility and keep logging configuration separate from application services.
+
+## Reason
+Provide consistent logging across AtlasAI while preventing services from managing logging configuration.
+
+## Trade-offs
++ Centralized configuration.
++ Consistent log formatting.
++ Easier future integration with file logging or structured logging.
+- Requires one shared utility module.
+# ADR-071: Milestone Freeze Policy
+
+## Decision
+Freeze the architecture of each milestone after implementation, hardening, logging, and testing are complete. Subsequent changes should be limited to bug fixes, performance improvements, or issues with a clear architectural impact.
+
+## Reason
+Maintain stability while allowing future development to build on a reliable foundation without repeated redesigns.
+
+## Trade-offs
++ Predictable development process.
++ Reduced architecture drift.
++ Easier testing and maintenance.
+- Some improvements may be intentionally deferred to later milestones.
+# ADR-072: Logging Configuration Service
+
+## Decision
+Provide centralized logging through a shared logger utility exposing `configure_logging()` and `get_logger()`.
+
+## Reason
+Separate logging configuration from application services while allowing future logging backends without modifying service code.
+
+## Trade-offs
++ One configuration point.
++ Consistent logging.
++ Easy future expansion.
+- Small shared utility module.
+# ADR-073: Centralized Logger Utility
+
+## Decision
+Introduce a shared logger utility that configures logging lazily and provides configured loggers through `get_logger()`.
+
+## Reason
+Ensure consistent logging across AtlasAI while eliminating the need for services to perform logging initialization.
+
+## Trade-offs
++ Single configuration point.
++ Prevents forgotten initialization.
++ Easy future extension.
+- Uses a small module-level initialization flag.
+# ADR-074: Logging Granularity
+
+## Decision
+Log major workflow operations at INFO level, implementation details at DEBUG level, and failures at ERROR level.
+
+## Reason
+Provide useful operational visibility without overwhelming normal application logs.
+
+## Trade-offs
++ Cleaner production logs.
++ More useful debugging.
++ Consistent logging policy.
+- Requires choosing log levels carefully during development.
