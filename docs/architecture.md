@@ -1025,3 +1025,53 @@ Provide useful operational visibility without overwhelming normal application lo
 + More useful debugging.
 + Consistent logging policy.
 - Requires choosing log levels carefully during development.
+# ADR-076: Centralized Configuration
+
+## Decision
+
+Application-wide configuration shall be centralized in
+backend/config/settings.py.
+
+## Reason
+
+Avoid duplicated configuration values and provide a single
+source of truth for services.
+
+## Trade-offs
+
++ Easier maintenance
++ Simpler future deployment
++ Consistent defaults
+
+- One additional module
+🚀 ADR-077: Application Service Layer
+Decision
+
+Introduce a new Application Service layer that acts as the public interface for AtlasAI.
+
+Frontend
+      ↓
+FastAPI
+      ↓
+GenerationService
+      ↓
+ImageEngineService
+      ↓
+Infrastructure
+Reason
+
+Separate application orchestration from engine implementations.
+
+Trade-offs
+
+✅ Cleaner API
+
+✅ Easier frontend integration
+
+✅ Supports future engines
+
+✅ Better scalability
+
+➖ One additional service layer
+
+I think this is absolutely worth the extra layer.

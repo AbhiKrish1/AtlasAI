@@ -13,7 +13,7 @@ Dependencies:
     Logger
 
 Last Updated:
-    Sprint 3
+    Sprint 4
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from backend.config import settings
 from backend.exceptions import (
     WorkflowMappingError,
     WorkflowNotFoundError,
@@ -41,12 +42,12 @@ class WorkflowLoader:
     def __init__(
         self,
         workflow_dir: str | Path | None = None,
-    ):
-        if workflow_dir is None:
-            root = Path(__file__).resolve().parents[2]
-            workflow_dir = root / "resources" / "workflows"
-
-        self.workflow_dir = Path(workflow_dir)
+    ) -> None:
+        self.workflow_dir = Path(
+            workflow_dir
+            if workflow_dir is not None
+            else settings.WORKFLOW_DIRECTORY
+        )
 
     def load(
         self,

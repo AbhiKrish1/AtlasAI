@@ -13,7 +13,7 @@ Dependencies:
     Logger
 
 Last Updated:
-    Sprint 3
+    Sprint 4
 """
 
 from __future__ import annotations
@@ -22,8 +22,9 @@ import time
 from typing import Any
 
 import requests
-from requests import RequestException
+from requests import RequestException, Response
 
+from backend.config import settings
 from backend.exceptions import (
     ComfyUIConnectionError,
     GenerationTimeoutError,
@@ -40,11 +41,27 @@ class ComfyUIClient:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:8188",
-        timeout: int = 30,
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
+        base_url: str | None = None,
+        timeout: int | None = None,
+        session: requests.Session | None = None,
+    ) -> None:
+        self.base_url = (
+            base_url
+            if base_url is not None
+            else settings.COMFYUI_URL
+        ).rstrip("/")
+
+        self.timeout = (
+            timeout
+            if timeout is not None
+            else settings.COMFYUI_TIMEOUT
+        )
+
+        self.session = (
+            session
+            if session is not None
+            else requests.Session()
+        )
 
     def queue_prompt(
         self,
@@ -57,13 +74,11 @@ class ComfyUIClient:
         logger.info("Queueing workflow for generation.")
 
         try:
-            response = requests.post(
-                f"{self.base_url}/prompt",
+            response = self._request(
+                "POST",
+                "/prompt",
                 json={"prompt": workflow},
-                timeout=self.timeout,
             )
-
-            response.raise_for_status()
 
         except RequestException as exc:
             logger.error("Failed to queue workflow.")
@@ -138,12 +153,10 @@ class ComfyUIClient:
         logger.info("Interrupting generation.")
 
         try:
-            response = requests.post(
-                f"{self.base_url}/interrupt",
-                timeout=self.timeout,
+            self._request(
+                "POST",
+                "/interrupt",
             )
-
-            response.raise_for_status()
 
             logger.info("Generation interrupted.")
 
@@ -162,7 +175,7 @@ class ComfyUIClient:
         """
 
         try:
-            response = requests.get(
+            response = self.session.get(
                 f"{self.base_url}/system_stats",
                 timeout=3,
             )
@@ -181,12 +194,10 @@ class ComfyUIClient:
         """
 
         try:
-            response = requests.get(
-                f"{self.base_url}/history/{prompt_id}",
-                timeout=self.timeout,
+            response = self._request(
+                "GET",
+                f"/history/{prompt_id}",
             )
-
-            response.raise_for_status()
 
             return response.json()
 
@@ -211,3 +222,24 @@ class ComfyUIClient:
         history = self.get_history(prompt_id)
 
         return history.get(prompt_id)
+
+    def _request(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs: Any,
+    ) -> Response:
+        """
+        Execute an HTTP request using the configured session.
+        """
+
+        response = self.session.request(
+            method=method,
+            url=f"{self.base_url}{endpoint}",
+            timeout=self.timeout,
+            **kwargs,
+        )
+
+        response.raise_for_status()
+
+        return response

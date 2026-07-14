@@ -13,7 +13,7 @@ Dependencies:
     Logger
 
 Last Updated:
-    Sprint 3
+    Sprint 4
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from typing import Any
 import requests
 from requests import RequestException
 
+from backend.config import settings
 from backend.exceptions import ImageDownloadError
 from backend.utils.logger import get_logger
 
@@ -37,17 +38,39 @@ class ImageDownloader:
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:8188",
-        output_dir: str | Path = "generated_images",
-        timeout: int = 30,
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.output_dir = Path(output_dir)
+        base_url: str | None = None,
+        output_dir: str | Path | None = None,
+        timeout: int | None = None,
+        session: requests.Session | None = None,
+    ) -> None:
+        self.base_url = (
+            base_url
+            if base_url is not None
+            else settings.COMFYUI_URL
+        ).rstrip("/")
+
+        self.output_dir = Path(
+            output_dir
+            if output_dir is not None
+            else settings.OUTPUT_DIRECTORY
+        )
+
         self.output_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
-        self.timeout = timeout
+
+        self.timeout = (
+            timeout
+            if timeout is not None
+            else settings.COMFYUI_TIMEOUT
+        )
+
+        self.session = (
+            session
+            if session is not None
+            else requests.Session()
+        )
 
     def download_images(
         self,
@@ -111,7 +134,7 @@ class ImageDownloader:
         )
 
         try:
-            response = requests.get(
+            response = self.session.get(
                 f"{self.base_url}/view",
                 params={
                     "filename": filename,
