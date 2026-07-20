@@ -81,7 +81,17 @@ class ComfyUIClient:
             )
 
         except RequestException as exc:
-            logger.error("Failed to queue workflow.")
+            logger.exception("Failed to queue workflow.")
+
+            if exc.response is not None:
+                logger.error(
+                    "Status Code: %s",
+                    exc.response.status_code,
+                )
+                logger.error(
+                    "Response Body: %s",
+                    exc.response.text,
+                )
 
             raise ComfyUIConnectionError(
                 "Failed to queue workflow."

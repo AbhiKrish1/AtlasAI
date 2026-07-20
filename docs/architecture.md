@@ -1075,3 +1075,22 @@ Trade-offs
 ➖ One additional service layer
 
 I think this is absolutely worth the extra layer.
+
+# ADR-078: Introduce Application Layer
+
+## Decision
+
+AtlasAI shall introduce an application layer responsible
+for orchestrating backend use cases.
+
+## Reason
+
+Separate HTTP/API concerns from engine implementations.
+
+## Trade-offs
+
++ Cleaner architecture
++ Easier testing
++ Easier frontend integration
+
+- One additional abstraction
