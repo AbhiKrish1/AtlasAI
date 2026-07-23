@@ -1,19 +1,35 @@
 """
-Video domain models.
+AtlasAI
+
+Module:
+    video.py
+
+Responsibility:
+    Data model representing a generated video project.
+
+Last Updated:
+    Sprint 5
 """
 
-from pathlib import Path
+from __future__ import annotations
 
-from pydantic import BaseModel
+from dataclasses import dataclass, field
+
+from backend.models.scene import Scene
 
 
-class VideoProject(BaseModel):
+@dataclass(slots=True)
+class Video:
     """
-    Represents the final rendered video.
+    Represents a generated video and all of its assets.
     """
 
-    output_path: Path
+    title: str
 
-    duration: float
+    scenes: list[Scene] = field(default_factory=list)
 
-    thumbnail_path: Path | None = None
+    audio_path: str | None = None
+
+    subtitle_path: str | None = None
+
+    output_path: str | None = None
