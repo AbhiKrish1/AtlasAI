@@ -37,11 +37,14 @@ class VideoAssemblerService:
     def __init__(
         self,
         ffmpeg_service: FFmpegService | None = None,
+        output_directory: Path | None = None,
     ) -> None:
 
-        self._ffmpeg = (
-            ffmpeg_service
-            or FFmpegService()
+        self._ffmpeg = ffmpeg_service or FFmpegService()
+
+        self._output_directory = (
+            output_directory
+            or settings.OUTPUT_DIRECTORY
         )
 
     def assemble(
@@ -116,9 +119,7 @@ class VideoAssemblerService:
         Generate the output video path.
         """
 
-        output_directory = (
-            settings.OUTPUT_DIRECTORY
-        )
+        output_directory = self._output_directory
 
         output_directory.mkdir(
             parents=True,

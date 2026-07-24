@@ -43,7 +43,7 @@ class VideoSettings:
     TEMP_DIRECTORY: Path = OUTPUT_DIRECTORY / "temp"
 
     # Final output extension
-    OUTPUT_EXTENSION: str = "mp4"
+    OUTPUT_EXTENSION: str = ".mp4"
 
     # FFmpeg executable
     FFMPEG_BINARY: str = "ffmpeg"
