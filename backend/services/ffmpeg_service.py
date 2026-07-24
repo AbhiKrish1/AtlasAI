@@ -5,11 +5,7 @@ Module:
     ffmpeg_service.py
 
 Responsibility:
-    Centralized service for all FFmpeg operations.
-
-    Sprint 6B Part 1:
-        - Generate temporary scene clips
-        - Execute FFmpeg commands
+    High-level FFmpeg operations for assembling videos.
 
 Last Updated:
     Sprint 6B
@@ -17,11 +13,11 @@ Last Updated:
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from backend.config.video import settings
 from backend.models.scene import Scene
+from backend.services.ffmpeg_runner import FFmpegRunner
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,32 +25,20 @@ logger = get_logger(__name__)
 
 class FFmpegService:
     """
-    Encapsulates all FFmpeg operations used by AtlasAI.
-
-    Public API:
-        - create_scene_clips()
-
-    Future additions:
-        - concatenate_clips()
-        - add_audio()
-        - burn_subtitles()
-        - cleanup()
+    High-level interface for FFmpeg operations.
     """
 
     def __init__(
         self,
-        temp_directory: Path | str | None = None,
+        runner: FFmpegRunner | None = None,
+        temp_directory: Path | None = None,
     ) -> None:
-        """
-        Initialize the FFmpeg service.
-        """
 
-        self._ffmpeg_binary = settings.FFMPEG_BINARY
+        self._runner = runner or FFmpegRunner()
 
         self._temp_directory = (
-            Path(temp_directory)
-            if temp_directory
-            else settings.TEMP_DIRECTORY
+            temp_directory
+            or settings.TEMP_DIRECTORY
         )
 
         self._temp_directory.mkdir(
@@ -62,129 +46,223 @@ class FFmpegService:
             exist_ok=True,
         )
 
-    def create_scene_clips(
+    def create_silent_video(
         self,
         scenes: list[Scene],
-    ) -> list[Path]:
+        output_path: Path,
+    ) -> Path:
         """
-        Generate one temporary MP4 clip for each scene.
-
-        Returns
-        -------
-        list[Path]
-            Paths to all generated clips.
+        Convert scene images into a silent video.
         """
 
         logger.info(
-            "Generating %d temporary scene clip(s).",
+            "Creating silent video with %d scene(s).",
             len(scenes),
         )
 
-        clips: list[Path] = []
+        clips = []
 
-        for scene in scenes:
+        try:
+
+            for scene in scenes:
+                clips.append(
+                    self._create_scene_clip(scene)
+                )
+
+            concat_file = self._create_concat_manifest(
+                clips
+            )
+
+            self._concatenate_clips(
+                concat_file,
+                output_path,
+            )
 
             logger.info(
-                "Generating clip for Scene %d.",
-                scene.id,
+                "Silent video created successfully."
             )
 
-            clip = self._create_scene_clip(
-                scene,
+            return output_path
+
+        finally:
+
+            self._cleanup_temp_files(
+                clips
             )
 
-            clips.append(clip)
+    def add_audio(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """
+        Add narration audio to a silent video.
+        """
 
         logger.info(
-            "Successfully generated %d clip(s).",
-            len(clips),
+            "Adding narration audio."
         )
 
-        return clips
+        self._runner.run(
+            [
+                "-y",
+                "-i",
+                str(video_path),
+                "-i",
+                str(audio_path),
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-shortest",
+                str(output_path),
+            ]
+        )
+
+        return output_path
+
+    def burn_subtitles(
+        self,
+        video_path: Path,
+        subtitle_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """
+        Burn subtitles into a video.
+        """
+
+        logger.info(
+            "Burning subtitles."
+        )
+
+        self._runner.run(
+            [
+                "-y",
+                "-i",
+                str(video_path),
+                "-vf",
+                f"ass={subtitle_path}",
+                "-c:a",
+                "copy",
+                str(output_path),
+            ]
+        )
+
+        return output_path
 
     def _create_scene_clip(
         self,
         scene: Scene,
     ) -> Path:
-        """
-        Convert a still image into a temporary MP4 clip.
-        """
+
+        if scene.image_path is None:
+            raise ValueError(
+                f"Scene {scene.id} has no image."
+            )
 
         output = (
             self._temp_directory
             / f"scene_{scene.id}.mp4"
         )
 
-        command = [
-            self._ffmpeg_binary,
-            "-y",
-            "-loop",
-            "1",
-            "-i",
-            str(scene.image_path),
-            "-t",
-            str(scene.duration),
-            "-r",
-            str(settings.FPS),
-            "-vf",
-            (
-                f"scale="
-                f"{settings.WIDTH}:{settings.HEIGHT}"
-            ),
-            "-c:v",
-            settings.VIDEO_CODEC,
-            "-pix_fmt",
-            settings.PIXEL_FORMAT,
-            "-preset",
-            settings.PRESET,
-            "-crf",
-            str(settings.CRF),
-            str(output),
-        ]
-
-        self._run_ffmpeg(command)
-
-        logger.info(
-            "Created clip %s",
-            output.name,
+        self._runner.run(
+            [
+                "-y",
+                "-loop",
+                "1",
+                "-i",
+                str(scene.image_path),
+                "-t",
+                str(scene.duration),
+                "-r",
+                str(settings.FPS),
+                "-vf",
+                (
+                    f"scale="
+                    f"{settings.WIDTH}:{settings.HEIGHT}"
+                ),
+                "-c:v",
+                settings.VIDEO_CODEC,
+                "-pix_fmt",
+                settings.PIXEL_FORMAT,
+                "-preset",
+                settings.PRESET,
+                "-crf",
+                str(settings.CRF),
+                str(output),
+            ]
         )
 
         return output
 
-    def _run_ffmpeg(
+    def _create_concat_manifest(
         self,
-        command: list[str],
+        clips: list[Path],
+    ) -> Path:
+
+        manifest = (
+            self._temp_directory
+            / "clips.txt"
+        )
+
+        with manifest.open(
+            "w",
+            encoding="utf-8",
+        ) as file:
+
+            for clip in clips:
+
+                file.write(
+                    f"file '{clip.resolve()}'\n"
+                )
+
+        return manifest
+
+    def _concatenate_clips(
+        self,
+        manifest: Path,
+        output_path: Path,
     ) -> None:
-        """
-        Execute an FFmpeg command.
 
-        Raises
-        ------
-        RuntimeError
-            If FFmpeg returns a non-zero exit code.
-        """
+        self._runner.run(
+            [
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(manifest),
+                "-c",
+                "copy",
+                str(output_path),
+            ]
+        )
+
+        if manifest.exists():
+            manifest.unlink()
+
+    def _cleanup_temp_files(
+        self,
+        clips: list[Path],
+    ) -> None:
 
         logger.info(
-            "Running FFmpeg command."
+            "Cleaning temporary clips."
         )
 
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-        )
+        for clip in clips:
 
-        if result.returncode != 0:
+            try:
 
-            logger.error(
-                "FFmpeg failed:\n%s",
-                result.stderr,
-            )
+                if clip.exists():
+                    clip.unlink()
 
-            raise RuntimeError(
-                "FFmpeg command failed."
-            )
+            except Exception as exc:
 
-        logger.info(
-            "FFmpeg completed successfully."
-        )
+                logger.warning(
+                    "Unable to delete %s (%s)",
+                    clip,
+                    exc,
+                )

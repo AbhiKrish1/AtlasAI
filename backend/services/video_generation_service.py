@@ -8,15 +8,17 @@ Responsibility:
     Orchestrates the complete AI video generation pipeline.
 
 Last Updated:
-    Sprint 5
+    Sprint 6A
 """
 
 from __future__ import annotations
 
 import logging
 import random
+
 from backend.models.video import Video
 from backend.services.image_engine_service import ImageEngineService
+from backend.services.narration_service import NarrationService
 from backend.services.script_generation_service import (
     ScriptGenerationService,
 )
@@ -26,28 +28,34 @@ logger = logging.getLogger(__name__)
 
 class VideoGenerationService:
     """
-    Coordinates the complete video generation pipeline.
+    Coordinates the complete AI video generation pipeline.
     """
 
     def __init__(
         self,
         script_service: ScriptGenerationService,
         image_service: ImageEngineService | None = None,
+        narration_service: NarrationService | None = None,
     ) -> None:
         self._script_service = script_service
         self._image_service = image_service or ImageEngineService()
+        self._narration_service = (
+            narration_service or NarrationService()
+        )
 
     def generate_video(self, topic: str) -> Video:
         """
-        Generate a video project from a topic.
+        Generate a complete video project.
 
-        Current pipeline:
+        Pipeline:
 
         Topic
             ↓
         Script Generation
             ↓
         Image Generation
+            ↓
+        Narration Generation
         """
 
         logger.info("Starting video generation.")
@@ -60,6 +68,8 @@ class VideoGenerationService:
         )
 
         self._generate_images(video)
+
+        video.audio_path = self._generate_narration(script)
 
         logger.info(
             "Video project generated successfully."
@@ -120,3 +130,21 @@ class VideoGenerationService:
                 scene.id,
                 scene.image_path,
             )
+
+    def _generate_narration(self, script):
+        """
+        Generate narration audio for the complete script.
+        """
+
+        logger.info("Generating narration.")
+
+        audio_path = self._narration_service.generate_narration(
+            script
+        )
+
+        logger.info(
+            "Narration saved to %s",
+            audio_path,
+        )
+
+        return audio_path

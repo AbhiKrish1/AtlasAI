@@ -8,7 +8,7 @@ Responsibility:
     Generate a structured video script from a topic using an LLM.
 
 Last Updated:
-    Sprint 5
+    Sprint 6A
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 WORDS_PER_SECOND = 2.5
 MIN_SCENE_DURATION = 2.5
+MAX_RETRIES = 3
 
 
 class ScriptGenerationService:
@@ -43,11 +44,38 @@ class ScriptGenerationService:
 
         prompt = self._build_prompt(topic)
 
-        response = self._llm.generate(prompt)
+        last_error: Exception | None = None
 
-        cleaned = self._clean_response(response)
+        for attempt in range(1, MAX_RETRIES + 1):
 
-        return self._parse_response(cleaned)
+            logger.info(
+                "Script generation attempt %d/%d",
+                attempt,
+                MAX_RETRIES,
+            )
+
+            response = self._llm.generate(prompt)
+
+            cleaned = self._clean_response(response)
+
+            try:
+                return self._parse_response(cleaned)
+
+            except ValueError as exc:
+
+                last_error = exc
+
+                logger.warning(
+                    "Invalid JSON received from LLM on attempt %d.",
+                    attempt,
+                )
+
+                logger.debug("LLM Response:\n%s", cleaned)
+
+        raise RuntimeError(
+            "Failed to generate a valid script after "
+            f"{MAX_RETRIES} attempts."
+        ) from last_error
 
     def _build_prompt(self, topic: str) -> str:
         """
@@ -57,21 +85,28 @@ class ScriptGenerationService:
         return f"""
 You are a professional YouTube Shorts script writer.
 
-Generate ONLY valid JSON.
+Return ONLY valid RFC8259 JSON.
 
 Do not include markdown.
 
 Do not include explanations.
 
+Do not include comments.
+
+Do not include trailing commas.
+
 Return exactly five scenes.
 
-Each scene should contain:
+Every scene MUST contain ALL of these keys:
 
 - id
 - narration
 - image_prompt
 
-The image_prompt should be a CINEMATIC visual prompt suitable for Stable Diffusion or Flux.
+Do not omit any keys.
+
+The image_prompt should be a cinematic visual prompt suitable for
+Stable Diffusion or Flux.
 
 Describe:
 
@@ -86,19 +121,15 @@ Do NOT include camera settings.
 
 Do NOT include negative prompts.
 
-Example:
-
-Ultra realistic NASA astrophotography of a supermassive black hole with a glowing orange accretion disk, dramatic gravitational lensing, deep space, cinematic lighting, extremely detailed, 8k, no text.
-
-Return JSON using this schema:
+Return JSON using EXACTLY this schema:
 
 {{
-    "title":"...",
-    "scenes":[
+    "title": "...",
+    "scenes": [
         {{
-            "id":1,
-            "narration":"...",
-            "image_prompt":"..."
+            "id": 1,
+            "narration": "...",
+            "image_prompt": "..."
         }}
     ]
 }}
@@ -129,8 +160,6 @@ Topic:
     def _estimate_duration(self, narration: str) -> float:
         """
         Estimate scene duration from narration.
-
-        Assumes roughly 150 words/minute.
         """
 
         words = len(narration.split())
@@ -148,25 +177,51 @@ Topic:
             data = json.loads(response)
 
         except json.JSONDecodeError as exc:
-            logger.exception("Invalid JSON returned by LLM.")
+
+            logger.error("Invalid JSON returned by LLM.")
+            logger.debug("LLM Response:\n%s", response)
+
             raise ValueError("LLM returned invalid JSON.") from exc
 
-        scenes = []
+        title = data.get("title")
 
-        for item in data["scenes"]:
+        if not title:
+            raise ValueError("Missing script title.")
+
+        scenes_data = data.get("scenes")
+
+        if not isinstance(scenes_data, list):
+            raise ValueError("Missing scenes array.")
+
+        scenes: list[Scene] = []
+
+        for index, item in enumerate(scenes_data, start=1):
+
+            narration = item.get("narration")
+            image_prompt = item.get("image_prompt")
+
+            if narration is None:
+                raise ValueError(
+                    f"Scene {index} missing narration."
+                )
+
+            if image_prompt is None:
+                raise ValueError(
+                    f"Scene {index} missing image_prompt."
+                )
 
             scenes.append(
                 Scene(
-                    id=item["id"],
-                    narration=item["narration"],
-                    image_prompt=item["image_prompt"],
+                    id=item.get("id", index),
+                    narration=narration,
+                    image_prompt=image_prompt,
                     duration=self._estimate_duration(
-                        item["narration"]
+                        narration
                     ),
                 )
             )
 
         return Script(
-            title=data["title"],
+            title=title,
             scenes=scenes,
         )
