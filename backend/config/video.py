@@ -45,8 +45,8 @@ class VideoSettings:
     # Final output extension
     OUTPUT_EXTENSION: str = ".mp4"
 
-    # FFmpeg executable
+    # FFmpeg executables
     FFMPEG_BINARY: str = "ffmpeg"
-
+    FFPROBE_BINARY: str = "ffprobe"
 
 settings = VideoSettings()

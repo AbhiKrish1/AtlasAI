@@ -8,13 +8,14 @@ Responsibility:
     Generate a structured video script from a topic using an LLM.
 
 Last Updated:
-    Sprint 6A
+    Sprint 6D
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 
 from backend.ai.llm.base import BaseLLMClient
 from backend.models.scene import Scene
@@ -44,7 +45,7 @@ class ScriptGenerationService:
 
         prompt = self._build_prompt(topic)
 
-        last_error: Exception | None = None
+        last_error: Exception |None = None
 
         for attempt in range(1, MAX_RETRIES + 1):
 
@@ -55,7 +56,6 @@ class ScriptGenerationService:
             )
 
             response = self._llm.generate(prompt)
-
             cleaned = self._clean_response(response)
 
             try:
@@ -70,7 +70,7 @@ class ScriptGenerationService:
                     attempt,
                 )
 
-                logger.debug("LLM Response:\n%s", cleaned)
+                logger.debug("Cleaned response:\n%s", cleaned)
 
         raise RuntimeError(
             "Failed to generate a valid script after "
@@ -87,41 +87,21 @@ You are a professional YouTube Shorts script writer.
 
 Return ONLY valid RFC8259 JSON.
 
-Do not include markdown.
-
-Do not include explanations.
-
-Do not include comments.
-
-Do not include trailing commas.
-
 Return exactly five scenes.
 
-Every scene MUST contain ALL of these keys:
+Do NOT output markdown.
+
+Do NOT output explanations.
+
+Do NOT output comments.
+
+Each scene MUST contain:
 
 - id
 - narration
 - image_prompt
 
-Do not omit any keys.
-
-The image_prompt should be a cinematic visual prompt suitable for
-Stable Diffusion or Flux.
-
-Describe:
-
-- subject
-- environment
-- lighting
-- camera angle
-- realism
-- colors
-
-Do NOT include camera settings.
-
-Do NOT include negative prompts.
-
-Return JSON using EXACTLY this schema:
+Return JSON exactly in this form:
 
 {{
     "title": "...",
@@ -141,19 +121,39 @@ Topic:
 
     def _clean_response(self, response: str) -> str:
         """
-        Remove markdown code fences.
+        Clean common formatting issues produced by LLMs.
         """
 
         response = response.strip()
 
+        # Remove UTF-8 BOM
+        response = response.lstrip("\ufeff")
+
+        # Remove markdown fences
         if response.startswith("```json"):
             response = response[7:]
-
         elif response.startswith("```"):
             response = response[3:]
 
         if response.endswith("```"):
             response = response[:-3]
+
+        response = response.strip()
+
+        # Replace smart quotes
+        response = (
+            response.replace("“", '"')
+            .replace("”", '"')
+            .replace("’", "'")
+            .replace("‘", "'")
+        )
+
+        # Remove control characters except valid whitespace
+        response = re.sub(
+            r"[\x00-\x08\x0B\x0C\x0E-\x1F]",
+            "",
+            response,
+        )
 
         return response.strip()
 
@@ -179,7 +179,21 @@ Topic:
         except json.JSONDecodeError as exc:
 
             logger.error("Invalid JSON returned by LLM.")
-            logger.debug("LLM Response:\n%s", response)
+
+            logger.error(
+                "JSON decode error at line %d column %d (char %d)",
+                exc.lineno,
+                exc.colno,
+                exc.pos,
+            )
+
+            start = max(0, exc.pos - 120)
+            end = min(len(response), exc.pos + 120)
+
+            logger.error(
+                "Context around error:\n%s",
+                response[start:end],
+            )
 
             raise ValueError("LLM returned invalid JSON.") from exc
 
@@ -193,6 +207,9 @@ Topic:
         if not isinstance(scenes_data, list):
             raise ValueError("Missing scenes array.")
 
+        if len(scenes_data) != 5:
+            raise ValueError("LLM must return exactly 5 scenes.")
+
         scenes: list[Scene] = []
 
         for index, item in enumerate(scenes_data, start=1):
@@ -200,12 +217,12 @@ Topic:
             narration = item.get("narration")
             image_prompt = item.get("image_prompt")
 
-            if narration is None:
+            if not narration:
                 raise ValueError(
                     f"Scene {index} missing narration."
                 )
 
-            if image_prompt is None:
+            if not image_prompt:
                 raise ValueError(
                     f"Scene {index} missing image_prompt."
                 )
@@ -213,8 +230,8 @@ Topic:
             scenes.append(
                 Scene(
                     id=item.get("id", index),
-                    narration=narration,
-                    image_prompt=image_prompt,
+                    narration=narration.strip(),
+                    image_prompt=image_prompt.strip(),
                     duration=self._estimate_duration(
                         narration
                     ),
@@ -222,6 +239,6 @@ Topic:
             )
 
         return Script(
-            title=title,
+            title=title.strip(),
             scenes=scenes,
         )

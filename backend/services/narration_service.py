@@ -9,19 +9,22 @@ Responsibility:
     Microsoft Edge-TTS.
 
 Last Updated:
-    Sprint 6A
+    Sprint 6D
 """
 
 from __future__ import annotations
 
 import asyncio
 import re
+import subprocess
 from pathlib import Path
 
 import edge_tts
 
 from backend.config.tts import settings
+from backend.config.video import settings as video_settings
 from backend.models.script import Script
+from backend.models.video import Video
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,11 +33,6 @@ logger = get_logger(__name__)
 class NarrationService:
     """
     Service responsible for converting a script into narration audio.
-
-    This service is intentionally isolated from the rest of the
-    pipeline so that future TTS providers (Azure, ElevenLabs,
-    XTTS, OpenAI, etc.) can replace Edge-TTS without affecting
-    VideoGenerationService.
     """
 
     def __init__(self) -> None:
@@ -47,14 +45,9 @@ class NarrationService:
         )
 
     def _slugify(self, text: str) -> str:
-        """
-        Convert a title into a filesystem-safe filename.
-        """
-
         text = text.lower().strip()
         text = re.sub(r"[^\w\s-]", "", text)
         text = re.sub(r"[-\s]+", "_", text)
-
         return text
 
     async def _generate_audio(
@@ -62,9 +55,6 @@ class NarrationService:
         text: str,
         output_path: Path,
     ) -> None:
-        """
-        Generate narration asynchronously using Edge-TTS.
-        """
 
         communicate = edge_tts.Communicate(
             text=text,
@@ -80,9 +70,6 @@ class NarrationService:
         self,
         script: Script,
     ) -> Path:
-        """
-        Generate narration for a script.
-        """
 
         logger.info("Generating narration...")
 
@@ -101,23 +88,103 @@ class NarrationService:
             / filename
         )
 
-        try:
-            asyncio.run(
-                self._generate_audio(
-                    text=narration_text,
-                    output_path=output_path,
-                )
+        asyncio.run(
+            self._generate_audio(
+                narration_text,
+                output_path,
+            )
+        )
+
+        logger.info(
+            "Narration generated successfully: %s",
+            output_path,
+        )
+
+        return output_path
+
+    def _get_audio_duration(
+        self,
+        audio_path: Path,
+    ) -> float:
+        """
+        Read audio duration using ffprobe.
+        """
+
+        command = [
+            video_settings.FFPROBE_BINARY,
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(audio_path),
+        ]
+
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        return float(result.stdout.strip())
+
+    def create_video(
+        self,
+        script: Script,
+    ) -> Video:
+        """
+        Generate narration and synchronize
+        scene durations with the real audio.
+        """
+
+        logger.info(
+            "Creating video object for '%s'.",
+            script.title,
+        )
+
+        audio_path = self.generate_narration(script)
+
+        audio_duration = self._get_audio_duration(
+            audio_path
+        )
+
+        estimated_duration = sum(
+            scene.duration
+            for scene in script.scenes
+        )
+
+        if estimated_duration > 0:
+
+            scale = (
+                audio_duration
+                / estimated_duration
             )
 
             logger.info(
-                "Narration generated successfully: %s",
-                output_path,
+                "Scaling scene durations by %.3f",
+                scale,
             )
 
-            return output_path
+            for scene in script.scenes:
+                scene.duration *= scale
 
-        except Exception:
-            logger.exception(
-                "Narration generation failed."
-            )
-            raise
+        logger.info(
+            "Audio duration : %.2fs",
+            audio_duration,
+        )
+
+        logger.info(
+            "Scene duration : %.2fs",
+            sum(
+                scene.duration
+                for scene in script.scenes
+            ),
+        )
+
+        return Video(
+            title=script.title,
+            scenes=script.scenes,
+            audio_path=str(audio_path),
+        )

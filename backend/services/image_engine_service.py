@@ -15,7 +15,7 @@ Dependencies:
     Logger
 
 Last Updated:
-    Sprint 3
+    Sprint 6C
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from backend.exceptions import (
     InvalidWorkflowParameterError,
     WorkflowMappingError,
 )
+from backend.models.script import Script
 from backend.models.workflow_template import WorkflowTemplate
 from backend.services.comfyui_client import ComfyUIClient
 from backend.services.image_downloader import ImageDownloader
@@ -46,7 +47,7 @@ class ImageEngineService:
         workflow_loader: WorkflowLoader | None = None,
         comfy_client: ComfyUIClient | None = None,
         downloader: ImageDownloader | None = None,
-    ):
+    ) -> None:
         self.workflow_loader = workflow_loader or WorkflowLoader()
         self.comfy_client = comfy_client or ComfyUIClient()
         self.downloader = downloader or ImageDownloader()
@@ -72,6 +73,7 @@ class ImageEngineService:
             "Injecting %d runtime parameter(s).",
             len(parameters),
         )
+
         self._populate_workflow(template, parameters)
 
         logger.info("Submitting workflow to ComfyUI.")
@@ -94,6 +96,75 @@ class ImageEngineService:
         )
 
         return images
+
+    def generate_images_for_script(
+        self,
+        script: Script,
+        workflow_name: str = "txt2img",
+        default_parameters: dict[str, Any] | None = None,
+    ) -> Script:
+        """
+        Generate images for every scene in a script.
+
+        Each generated image is assigned to the corresponding
+        scene's ``image_path``.
+
+        Returns
+        -------
+        Script
+            The same Script instance with populated image paths.
+        """
+
+        logger.info(
+            "Generating images for %d scene(s).",
+            len(script.scenes),
+        )
+
+        defaults = default_parameters or {}
+
+        for scene in script.scenes:
+
+            logger.info(
+                "Generating image for scene %d.",
+                scene.id,
+            )
+
+            parameters = {
+                **defaults,
+                "prompt": scene.image_prompt,
+            }
+
+            images = self.generate_image(
+                workflow_name=workflow_name,
+                parameters=parameters,
+            )
+
+            if not images:
+                raise RuntimeError(
+                    f"No image generated for scene {scene.id}."
+                )
+
+            if len(images) != 1:
+                logger.warning(
+                    "Expected one image for scene %d but received %d. "
+                    "Using the first image.",
+                    scene.id,
+                    len(images),
+                )
+
+            scene.image_path = images[0]
+
+            logger.info(
+                "Scene %d image saved to %s",
+                scene.id,
+                scene.image_path,
+            )
+
+        logger.info(
+            "Image generation completed for script."
+        )
+
+        return script
 
     def _populate_workflow(
         self,

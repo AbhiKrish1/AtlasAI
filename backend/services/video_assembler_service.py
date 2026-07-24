@@ -9,7 +9,7 @@ Responsibility:
     assembly process.
 
 Last Updated:
-    Sprint 6B
+    Sprint 6C
 """
 
 from __future__ import annotations
@@ -52,12 +52,7 @@ class VideoAssemblerService:
         video: Video,
     ) -> Path:
         """
-        Assemble a complete video.
-
-        Returns
-        -------
-        Path
-            Location of the generated video.
+        Assemble a complete video with narration.
         """
 
         logger.info(
@@ -66,14 +61,40 @@ class VideoAssemblerService:
 
         self._validate(video)
 
+        self._output_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         output_path = self._build_output_path(
             video.title,
         )
 
+        silent_video = (
+            self._output_directory
+            / f"{output_path.stem}_silent.mp4"
+        )
+
+        # Create silent video from scene images
         self._ffmpeg.create_silent_video(
             video.scenes,
-            output_path,
+            silent_video,
         )
+
+        # Merge narration if present
+        if video.audio_path:
+
+            self._ffmpeg.add_audio(
+                video_path=silent_video,
+                audio_path=Path(video.audio_path),
+                output_path=output_path,
+            )
+
+            if silent_video.exists():
+                silent_video.unlink()
+
+        else:
+            silent_video.rename(output_path)
 
         logger.info(
             "Video assembly completed."
@@ -119,9 +140,7 @@ class VideoAssemblerService:
         Generate the output video path.
         """
 
-        output_directory = self._output_directory
-
-        output_directory.mkdir(
+        self._output_directory.mkdir(
             parents=True,
             exist_ok=True,
         )
@@ -131,7 +150,7 @@ class VideoAssemblerService:
             + settings.OUTPUT_EXTENSION
         )
 
-        return output_directory / filename
+        return self._output_directory / filename
 
     @staticmethod
     def _slugify(
