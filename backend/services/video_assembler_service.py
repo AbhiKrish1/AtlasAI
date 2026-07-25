@@ -1,3 +1,4 @@
+
 """
 AtlasAI
 
@@ -9,7 +10,7 @@ Responsibility:
     assembly process.
 
 Last Updated:
-    Sprint 6C
+    Sprint 7.2
 """
 
 from __future__ import annotations
@@ -52,7 +53,8 @@ class VideoAssemblerService:
         video: Video,
     ) -> Path:
         """
-        Assemble a complete video with narration.
+        Assemble a complete video with narration
+        and burned subtitles.
         """
 
         logger.info(
@@ -75,26 +77,60 @@ class VideoAssemblerService:
             / f"{output_path.stem}_silent.mp4"
         )
 
-        # Create silent video from scene images
+        narrated_video = (
+            self._output_directory
+            / f"{output_path.stem}_audio.mp4"
+        )
+
+        #
+        # Step 1
+        # Create silent video
+        #
         self._ffmpeg.create_silent_video(
             video.scenes,
             silent_video,
         )
 
-        # Merge narration if present
+        #
+        # Step 2
+        # Add narration
+        #
         if video.audio_path:
 
             self._ffmpeg.add_audio(
                 video_path=silent_video,
                 audio_path=Path(video.audio_path),
-                output_path=output_path,
+                output_path=narrated_video,
             )
 
             if silent_video.exists():
                 silent_video.unlink()
 
         else:
-            silent_video.rename(output_path)
+
+            narrated_video = silent_video
+
+        #
+        # Step 3
+        # Burn subtitles
+        #
+        if video.subtitle_path:
+
+            self._ffmpeg.burn_subtitles(
+                video_path=narrated_video,
+                subtitle_path=Path(video.subtitle_path),
+                output_path=output_path,
+            )
+
+            if (
+                narrated_video.exists()
+                and narrated_video != silent_video
+            ):
+                narrated_video.unlink()
+
+        else:
+
+            narrated_video.rename(output_path)
 
         logger.info(
             "Video assembly completed."
@@ -175,3 +211,4 @@ class VideoAssemblerService:
         )
 
         return text.strip("-")
+

@@ -9,7 +9,7 @@ Responsibility:
     AtlasAI video generation pipeline.
 
 Last Updated:
-    Sprint 6D
+    Sprint 7A
 """
 
 from __future__ import annotations
@@ -28,6 +28,9 @@ from backend.services.image_engine_service import (
 from backend.services.narration_service import (
     NarrationService,
 )
+from backend.services.subtitle_service import (
+    SubtitleService,
+)
 from backend.services.video_assembler_service import (
     VideoAssemblerService,
 )
@@ -39,12 +42,13 @@ def test_video_generation() -> None:
     Full end-to-end pipeline with diagnostics.
     """
 
-    topic = "Top 5 Facts About Black Holes"
+    topic = "Penis"
 
     llm = OllamaClient()
 
     script_service = ScriptGenerationService(llm)
     image_service = ImageEngineService()
+    subtitle_service = SubtitleService()
     narration_service = NarrationService()
     assembler = VideoAssemblerService()
 
@@ -67,6 +71,14 @@ def test_video_generation() -> None:
     print("-" * 40)
     print(f"Estimated total duration: {total_duration:.2f}s")
 
+    print("\nGenerating subtitles...")
+    subtitle_path = subtitle_service.generate_subtitles(script)
+
+    print(f"Subtitle file : {subtitle_path}")
+
+    assert subtitle_path.exists()
+    assert subtitle_path.stat().st_size > 0
+
     print("\nGenerating images...")
     script = image_service.generate_images_for_script(script)
 
@@ -83,6 +95,7 @@ def test_video_generation() -> None:
     print("===================================")
     print(f"Topic              : {topic}")
     print(f"Estimated Duration : {total_duration:.2f}s")
+    print(f"Subtitle           : {subtitle_path}")
     print(f"Output             : {output_path}")
     print(f"Size               : {output_path.stat().st_size} bytes")
     print("Status             : PASS")

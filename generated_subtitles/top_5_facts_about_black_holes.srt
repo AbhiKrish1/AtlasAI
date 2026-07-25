@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:05,599
+Black holes are regions where gravity is so strong, not even light can escape.
+
+2
+00:00:05,599 --> 00:00:11,199
+The event horizon is the point of no return around a black hole's singularity.
+
+3
+00:00:11,199 --> 00:00:16,399
+Supermassive black holes at galaxy centers influence star formation across billions of years.
+
+4
+00:00:16,399 --> 00:00:21,599
+Black holes can grow by merging with other black holes or swallowing stars.
+
+5
+00:00:21,599 --> 00:00:26,799
+Einstein's theory of relativity predicted black holes, confirmed by recent gravitational wave detections.

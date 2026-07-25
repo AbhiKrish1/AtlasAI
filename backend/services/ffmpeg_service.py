@@ -8,7 +8,7 @@ Responsibility:
     High-level FFmpeg operations for assembling videos.
 
 Last Updated:
-    Sprint 6B
+    Sprint 7.2
 """
 
 from __future__ import annotations
@@ -129,11 +129,15 @@ class FFmpegService:
         output_path: Path,
     ) -> Path:
         """
-        Burn subtitles into a video.
+        Burn SRT subtitles into a video.
         """
 
         logger.info(
             "Burning subtitles."
+        )
+
+        escaped_path = self._escape_subtitle_path(
+            subtitle_path
         )
 
         self._runner.run(
@@ -142,7 +146,7 @@ class FFmpegService:
                 "-i",
                 str(video_path),
                 "-vf",
-                f"ass={subtitle_path}",
+                f"subtitles='{escaped_path}'",
                 "-c:a",
                 "copy",
                 str(output_path),
@@ -150,6 +154,42 @@ class FFmpegService:
         )
 
         return output_path
+
+    def _escape_subtitle_path(
+        self,
+        subtitle_path: Path,
+    ) -> str:
+        """
+        Escape a subtitle path for FFmpeg's subtitles filter.
+
+        FFmpeg expects:
+        - forward slashes
+        - escaped drive-letter colon
+        - escaped single quotes
+        """
+
+        path = str(
+            subtitle_path.resolve()
+        )
+
+        path = path.replace(
+            "\\",
+            "/",
+        )
+
+        if len(path) >= 2 and path[1] == ":":
+            path = (
+                path[0]
+                + "\\:"
+                + path[2:]
+            )
+
+        path = path.replace(
+            "'",
+            r"\'",
+        )
+
+        return path
 
     def _create_scene_clip(
         self,

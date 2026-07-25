@@ -9,7 +9,7 @@ Responsibility:
     Microsoft Edge-TTS.
 
 Last Updated:
-    Sprint 6D
+    Sprint 7.2
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from backend.config.tts import settings
 from backend.config.video import settings as video_settings
 from backend.models.script import Script
 from backend.models.video import Video
+from backend.services.subtitle_service import SubtitleService
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,6 +39,7 @@ class NarrationService:
     def __init__(self) -> None:
         self._voice = settings.DEFAULT_VOICE
         self._output_directory = settings.OUTPUT_DIRECTORY
+        self._subtitle_service = SubtitleService()
 
         self._output_directory.mkdir(
             parents=True,
@@ -135,13 +137,17 @@ class NarrationService:
         script: Script,
     ) -> Video:
         """
-        Generate narration and synchronize
+        Generate subtitles, narration, and synchronize
         scene durations with the real audio.
         """
 
         logger.info(
             "Creating video object for '%s'.",
             script.title,
+        )
+
+        subtitle_path = self._subtitle_service.generate_subtitles(
+            script
         )
 
         audio_path = self.generate_narration(script)
@@ -187,4 +193,5 @@ class NarrationService:
             title=script.title,
             scenes=script.scenes,
             audio_path=str(audio_path),
+            subtitle_path=str(subtitle_path),
         )
