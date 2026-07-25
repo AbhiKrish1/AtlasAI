@@ -42,7 +42,7 @@ def test_video_generation() -> None:
     Full end-to-end pipeline with diagnostics.
     """
 
-    topic = "Penis"
+    topic = "5 facts about water"
 
     llm = OllamaClient()
 
