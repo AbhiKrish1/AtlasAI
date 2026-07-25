@@ -1,34 +1,87 @@
-# ==========================
+# ============================================================
+# AtlasAI
+# ============================================================
+
 # Python
-# ==========================
 __pycache__/
 *.py[cod]
+*$py.class
 *.pyo
+*.pyd
 
-# ==========================
 # Virtual Environments
-# ==========================
-venv/
 .venv/
+venv/
+env/
+ENV/
 
-# ==========================
-# Pytest
-# ==========================
-.pytest_cache/
+# Environment Variables
+.env
+.env.*
 
-# ==========================
-# Generated Images
-# ==========================
-generated_images/
-
-# ==========================
-# IDE
-# ==========================
+# IDEs
 .vscode/
 .idea/
+*.swp
 
-# ==========================
 # OS Files
-# ==========================
 .DS_Store
 Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+.cache/
+
+# Build Artifacts
+build/
+dist/
+*.egg-info/
+
+# ============================================================
+# AtlasAI Generated Content
+# ============================================================
+
+generated_audio/
+generated_images/
+generated_subtitles/
+generated_videos/
+generated_scripts/
+generated_drafts/
+generated_temp/
+
+# Temporary FFmpeg files
+temp/
+tmp/
+
+# ComfyUI temporary outputs
+outputs/
+input/
+
+# ============================================================
+# Model Downloads / Caches
+# ============================================================
+
+.cache/
+models/
+checkpoints/
+
+# ============================================================
+# Jupyter
+# ============================================================
+
+.ipynb_checkpoints/
+
+# ============================================================
+# Misc
+# ============================================================
+
+*.tmp
+*.bak
+*.orig
