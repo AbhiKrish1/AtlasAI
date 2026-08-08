@@ -99,3 +99,5 @@ checkpoints/
 
 # Local ZIP archives
 *.zip
+# ComfyUI test outputs
+outputs/comfyui_test/
