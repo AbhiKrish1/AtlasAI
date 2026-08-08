@@ -85,3 +85,17 @@ checkpoints/
 *.tmp
 *.bak
 *.orig
+
+# Ruff / MyPy / Pyright
+.mypy_cache/
+.ruff_cache/
+.pyright/
+
+# macOS resource forks
+._*
+
+# Local SQLite databases
+*.db
+
+# Local ZIP archives
+*.zip
